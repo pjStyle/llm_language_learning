@@ -7,7 +7,8 @@ using System.Net.Http.Headers;
 using System.Drawing.Printing;
 
 namespace LLMTestApp
-{ 
+{
+    #region Protocol structs
     public struct PageTranslation
     {
         public string source_lang { get; set; }
@@ -42,6 +43,35 @@ namespace LLMTestApp
         public NewPageResponse()
         {}
     }
+
+    public struct TranslationRequest
+    {
+        public string text { get; set; }
+    }
+    public struct ValidateTranslationRequest
+    {
+        public TranslationRequest validate_translation_request { get { return request; } set { request = value; } }
+        private TranslationRequest request = new TranslationRequest();
+
+        public ValidateTranslationRequest(string my_translation)
+        {
+            request.text = my_translation;
+        }
+    }
+    public struct TranslationReponse
+    {
+        public int grade{ get; set; }
+        public string correction{ get; set; }
+    }
+    public struct ValidateTranslationResponse
+    {
+        public TranslationReponse validate_translation_response { get { return response; } set { response = value; } }
+        private TranslationReponse response = new TranslationReponse();
+
+        public ValidateTranslationResponse()
+        { }
+    }
+    #endregion
 
     public partial class Form1 : Form
     {
@@ -84,9 +114,64 @@ namespace LLMTestApp
             return "";
         }
 
+        private async Task<string> RequestTranslationValidation(string my_text)
+        {
+            ValidateTranslationRequest R = new ValidateTranslationRequest(my_text);
+            string jsonString = JsonSerializer.Serialize(R);
+
+            // Create an instance of HttpClient
+            using (HttpClient client = new HttpClient())
+            {
+                try
+                {
+                    string url = String.Format("{0}/api/talk_to_llm?json={1}", Endpoint, jsonString);
+                    using HttpResponseMessage response = await client.GetAsync(url);
+                    var jsonResponse = await response.Content.ReadAsStringAsync();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        ValidateTranslationResponse translationResponse = JsonSerializer.Deserialize<ValidateTranslationResponse>(jsonResponse);
+                        return String.Format("{0}/5 {1}{2}", translationResponse.validate_translation_response.grade, Environment.NewLine, translationResponse.validate_translation_response.correction);                        
+                    }
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"Error during GET request: {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+                }
+            }
+
+            return "";
+        }
+
         private void button2_Click(object sender, EventArgs e)
         {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    string textToValidate = "";
+                    Invoke((MethodInvoker)delegate
+                    {
+                        textToValidate = richTextBox2.Text;
+                    });
 
+                    string ? Result = await RequestTranslationValidation(textToValidate);
+                    if (Result != null)
+                    {
+                        Invoke((MethodInvoker)delegate
+                        {
+                            richTextBox3.Text = Result;
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+            });
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -95,7 +180,7 @@ namespace LLMTestApp
             {
                 try
                 {
-                    string? Result = await RequestNewTextToTranslate("Japanese", "English", "Gaming");
+                    string? Result = await RequestNewTextToTranslate("English", "Dutch", "Gaming");
                     if (Result != null)
                     {
                         Invoke((MethodInvoker)delegate

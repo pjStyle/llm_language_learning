@@ -84,7 +84,7 @@
             // 
             richTextBox3.Location = new Point(3, 465);
             richTextBox3.Name = "richTextBox3";
-            richTextBox3.Size = new Size(629, 160);
+            richTextBox3.Size = new Size(629, 229);
             richTextBox3.TabIndex = 2;
             richTextBox3.Text = "";
             // 
