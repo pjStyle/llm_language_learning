@@ -9,73 +9,56 @@ using System.Drawing.Printing;
 namespace LLMTestApp
 {
     #region Protocol structs
-    public struct PageTranslation
+    public struct PageTranslationRequest
     {
         public string source_lang { get; set; }
         public string target_lang { get; set; }
         public string page_category { get; set; }
     }
 
-    public struct PageTranslationRequest
-    {
-        public PageTranslation new_page_request { get { return my_request; } }
-
-        private PageTranslation my_request = new PageTranslation();
-        public PageTranslationRequest(string source_lang, string target_lang, string page_category) 
-        {
-            my_request = new PageTranslation();
-            my_request.source_lang = source_lang;
-            my_request.target_lang = target_lang;
-            my_request.page_category = page_category;
-        }
-    }
-
-    public struct NewPage
+    public struct NewPageResponse
     {
         public string link_to_page { get; set; }
         public string text { get; set; }
     }
-    public struct NewPageResponse
-    {       
-        public NewPage new_page_response { get { return new_page; } set { new_page = value; } }
-        private NewPage new_page = new NewPage();
 
-        public NewPageResponse()
-        {}
-    }
-
-    public struct TranslationRequest
-    {
-        public string text { get; set; }
-    }
     public struct ValidateTranslationRequest
     {
-        public TranslationRequest validate_translation_request { get { return request; } set { request = value; } }
-        private TranslationRequest request = new TranslationRequest();
+        public string source_lang { get; set; }
+        public string target_lang { get; set; }
+        public string original_text { get; set; }
+        public string text { get; set; }
+    }
 
-        public ValidateTranslationRequest(string my_translation)
-        {
-            request.text = my_translation;
-        }
-    }
-    public struct TranslationReponse
+    public struct TranslationCorrection
     {
-        public int grade{ get; set; }
-        public string correction{ get; set; }
+        public string original { get; set; }
+        public string corrected { get; set; }
     }
+
     public struct ValidateTranslationResponse
     {
-        public TranslationReponse validate_translation_response { get { return response; } set { response = value; } }
-        private TranslationReponse response = new TranslationReponse();
-
-        public ValidateTranslationResponse()
-        { }
+        public List<TranslationCorrection> corrections { get; set; }
+        public string GetCorrectionsAsString()
+        {
+            string all_corrections = new string("");
+            foreach (var corr in corrections)
+            {
+                var current_line = string.Format("{0}{1}{2}", corr.original, Environment.NewLine, corr.corrected);
+                all_corrections += string.Format("{0}{1}", current_line, Environment.NewLine);
+            }
+            return all_corrections;
+        }
     }
-    #endregion
 
+    #endregion
+    
     public partial class Form1 : Form
     {
         private string Endpoint = "http://localhost:5000";
+        private string source_lang = "English";
+        private string target_lang = "Japanese";
+        private string text_to_be_translated = "";
         public Form1()
         {
             InitializeComponent();
@@ -83,7 +66,7 @@ namespace LLMTestApp
 
         private async Task<string> RequestNewTextToTranslate(string source_lang, string target_lang, string category)
         {
-            PageTranslationRequest R = new PageTranslationRequest(source_lang, target_lang, category);          
+            PageTranslationRequest R = new PageTranslationRequest { source_lang = source_lang, target_lang = target_lang, page_category = category };
             string jsonString = JsonSerializer.Serialize(R);
 
             // Create an instance of HttpClient
@@ -97,7 +80,8 @@ namespace LLMTestApp
                     if (response.IsSuccessStatusCode)
                     {
                         NewPageResponse Page = JsonSerializer.Deserialize<NewPageResponse>(jsonResponse);
-                        return Page.new_page_response.text;
+                        text_to_be_translated = Page.text;
+                        return Page.text;
                     }
                     
                 }
@@ -114,9 +98,9 @@ namespace LLMTestApp
             return "";
         }
 
-        private async Task<string> RequestTranslationValidation(string my_text)
+        private async Task<string> RequestTranslationValidation(string source_lang, string target_lang, string my_text)
         {
-            ValidateTranslationRequest R = new ValidateTranslationRequest(my_text);
+            ValidateTranslationRequest R = new ValidateTranslationRequest { source_lang = source_lang, target_lang = target_lang, original_text=text_to_be_translated, text = my_text };
             string jsonString = JsonSerializer.Serialize(R);
 
             // Create an instance of HttpClient
@@ -130,7 +114,7 @@ namespace LLMTestApp
                     if (response.IsSuccessStatusCode)
                     {
                         ValidateTranslationResponse translationResponse = JsonSerializer.Deserialize<ValidateTranslationResponse>(jsonResponse);
-                        return String.Format("{0}/5 {1}{2}", translationResponse.validate_translation_response.grade, Environment.NewLine, translationResponse.validate_translation_response.correction);                        
+                        return String.Format("{0}{1}", translationResponse.GetCorrectionsAsString(), Environment.NewLine);                        
                     }
                 }
                 catch (HttpRequestException ex)
@@ -158,7 +142,7 @@ namespace LLMTestApp
                         textToValidate = richTextBox2.Text;
                     });
 
-                    string ? Result = await RequestTranslationValidation(textToValidate);
+                    string ? Result = await RequestTranslationValidation(source_lang, target_lang, textToValidate);
                     if (Result != null)
                     {
                         Invoke((MethodInvoker)delegate
@@ -180,7 +164,7 @@ namespace LLMTestApp
             {
                 try
                 {
-                    string? Result = await RequestNewTextToTranslate("English", "Dutch", "Gaming");
+                    string? Result = await RequestNewTextToTranslate(source_lang, target_lang, "Gaming");
                     if (Result != null)
                     {
                         Invoke((MethodInvoker)delegate
